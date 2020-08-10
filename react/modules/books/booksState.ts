@@ -2,7 +2,7 @@ import { graphqlClient } from "util/graphql";
 
 import GetBooksQuery from "graphQL/books/getBooks.graphql";
 import { useCurrentSearch } from "./booksSearchState";
-import { useMemo } from "react";
+import { useMemo, useContext } from "react";
 import { useSuspenseQuery } from "micro-graphql-react";
 import { clearCache, syncCollection } from "util/graphqlCacheHelpers";
 
@@ -10,6 +10,8 @@ import { useTagsState } from "app/state/tagsState";
 import { QueryOf, Queries } from "graphql-typings";
 import { computeBookSearchVariables } from "./booksLoadingUtils";
 import { useSubjectsState } from "app/state/subjectsState";
+
+import { ModuleUpdateContext } from "app/renderUI";
 
 interface IEditorialReview {
   content: string;
@@ -63,12 +65,20 @@ window.addEventListener("book-scanned", () => graphqlClient.getCache(GetBooksQue
 export const useBooks = () => {
   const searchState = useCurrentSearch();
   const variables = useMemo(() => computeBookSearchVariables(searchState), [searchState]);
+
+  const suspensePacket = useContext(ModuleUpdateContext);
+
   const onBooksMutation = [
     {
       when: /updateBooks?/,
-      run: ({ currentResults: current, softReset }, resp) => {
-        current.allBooks.Books = syncCollection(current.allBooks.Books, resp.updateBooks ? resp.updateBooks.Books : [resp.updateBook.Book]);
-        softReset(current);
+      run: ({ hardReset, currentResults: current, softReset }, resp) => {
+        //current.allBooks.Books = syncCollection(current.allBooks.Books, resp.updateBooks ? resp.updateBooks.Books : [resp.updateBook.Book]);
+        //softReset(current);
+        //setTimeout(() => {
+          suspensePacket.startTransition(() => {
+            hardReset();
+          });
+        //}, 1);
       }
     },
     {
@@ -84,8 +94,8 @@ export const useBooks = () => {
       }
     }
   ];
+
   const { data, loaded, currentQuery } = useSuspenseQuery<QueryOf<Queries["allBooks"]>>(GetBooksQuery, variables, {
-    preloadOnly: true,
     onMutation: onBooksMutation
   });
 
